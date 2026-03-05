@@ -1,0 +1,92 @@
+{
+  "components": {
+    "comp-process-data": {
+      "executorLabel": "exec-process-data",
+      "inputDefinitions": {
+        "parameters": {
+          "sample_size": {
+            "parameterType": "NUMBER_INTEGER"
+          },
+          "seed": {
+            "parameterType": "NUMBER_INTEGER"
+          }
+        }
+      },
+      "outputDefinitions": {
+        "parameters": {
+          "Output": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    }
+  },
+  "defaultPipelineRoot": "gs://b1bd1e40-2c20-433d-83a1-xxxxxxxxxxxxx/pipeline-root",
+  "deploymentSpec": {
+    "executors": {
+      "exec-process-data": {
+        "container": {
+          "args": [
+            "--executor_input",
+            "{{$}}",
+            "--function_to_execute",
+            "process_data"
+          ],
+          "command": [
+            "sh",
+            "-c",
+            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'kfp==2.16.0' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"$0\" \"$@\"\n",
+            "sh",
+            "-ec",
+            "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef process_data(seed: int, sample_size: int) -> str:\n    \"\"\"Generates random samples and computes basic statistics.\"\"\"\n    import math, random, json\n\n    random.seed(seed)\n    samples = [math.sqrt(-2 * math.log(random.random())) * math.cos(2 * math.pi * random.random()) \n               for _ in range(sample_size)]\n\n    mean = sum(samples) / len(samples)\n    std_dev = math.sqrt(sum((x - mean) ** 2 for x in samples) / len(samples))\n\n    return json.dumps({\"mean\": round(mean, 4), \"std_dev\": round(std_dev, 4), \n                       \"min\": round(min(samples), 4), \"max\": round(max(samples), 4)})\n\n"
+          ],
+          "image": "python:3.12"
+        }
+      }
+    }
+  },
+  "pipelineInfo": {
+    "description": "Simple pipeline that generates samples and computes statistics.",
+    "name": "simple-python-pipeline"
+  },
+  "root": {
+    "dag": {
+      "tasks": {
+        "process-data": {
+          "cachingOptions": {
+            "enableCache": true
+          },
+          "componentRef": {
+            "name": "comp-process-data"
+          },
+          "inputs": {
+            "parameters": {
+              "sample_size": {
+                "componentInputParameter": "sample_size"
+              },
+              "seed": {
+                "componentInputParameter": "seed"
+              }
+            }
+          },
+          "taskInfo": {
+            "name": "process-data"
+          }
+        }
+      }
+    },
+    "inputDefinitions": {
+      "parameters": {
+        "sample_size": {
+          "parameterType": "NUMBER_INTEGER"
+        },
+        "seed": {
+          "parameterType": "NUMBER_INTEGER"
+        }
+      }
+    }
+  },
+  "schemaVersion": "2.1.0",
+  "sdkVersion": "kfp-2.16.0"
+}
